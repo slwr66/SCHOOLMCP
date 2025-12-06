@@ -92,9 +92,7 @@ async def translate_batch(texts: List[str], target: str = "ru") -> List[str]:
         return texts
     
     headers = {}
-    if YANDEX_IAM_TOKEN:
-        headers["Authorization"] = f"Bearer {YANDEX_IAM_TOKEN}"
-    elif YANDEX_API_KEY:
+    if YANDEX_API_KEY:
         headers["Authorization"] = f"Api-Key {YANDEX_API_KEY}"
     
     body = {
@@ -102,6 +100,9 @@ async def translate_batch(texts: List[str], target: str = "ru") -> List[str]:
         "targetLanguageCode": target
     }
     
+    if YANDEX_IAM_TOKEN:
+        body["folderId"] = f"{YANDEX_IAM_TOKEN}"
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
