@@ -8,7 +8,7 @@ from mcp_instance import mcp
 from tools.get_images import get_images  # noqa: F401
 from tools.get_quiz import get_quiz  # noqa: F401
 from tools.export_quiz import export_quiz  # noqa: F401
-from tools.get_text_from_wiki import get_text_from_wiki
+from tools.get_text_from_wiki import get_text_from_wiki  # noqa: F401
 
 if __name__ == "__main__":
     mcp.run()

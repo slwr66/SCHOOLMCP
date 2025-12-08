@@ -31,8 +31,10 @@ async def search_article(
 
     try:
         response = requests.get(
-            f"https://{language}.wikipedia.org/w/api.h",
-            params = params
+            f"https://{language}.wikipedia.org/w/api.php",
+            params=params,
+            headers={"User-Agent": USER_AGENT},
+            timeout=10
         )
         response.raise_for_status()
         data = response.json()
@@ -41,9 +43,19 @@ async def search_article(
         results = data["query"]["search"]
         total_hits = data["query"].get("searchinfo", {}).get("totalhits", 0)
         
-        output = [f"🔍 **Результаты поиска:** '{query.query}'"]
-        output.append(f"📊 Найдено всего: {total_hits} статей")
+        output = [f"**Результаты поиска:** '{query}'"]
+        output.append(f"Найдено всего: {total_hits} статей")
         output.append("---")
+        
+        for result in results:
+            title = result.get("title", "Без названия")
+            snippet = result.get("snippet", "")
+            output.append(f"**{title}**")
+            if snippet:
+                output.append(snippet)
+            output.append("")
+        
+        return "\n".join(output)
 
     except requests.exceptions.RequestException as e:
         return f"Ошибка при поиске: {str(e)}"
@@ -62,7 +74,7 @@ async def get_text_from_wiki(
     """
 
     if not title and not pageid:
-        return "Ошибка : необходимо указать title или page id"
+        return ["Ошибка: необходимо указать title или page id"]
     
     headers = {"User-Agent": USER_AGENT}
     params = {
@@ -74,11 +86,14 @@ async def get_text_from_wiki(
         "exsectionformat": "plain",
         "exintro": 0,
         "rvprop": "timestamp",
+        "redirects": 1,  # Обработка редиректов
     }
 
     parameters = {}
-    if title :
-        parameters['title'] = title
+    if title:
+        # Нормализация названия: замена пробелов на подчеркивания
+        normalized_title = title.strip().replace(" ", "_")
+        parameters['titles'] = normalized_title  # Используем 'titles' (множественное число)
     elif pageid:
         parameters['pageids'] = pageid
 
@@ -96,25 +111,39 @@ async def get_text_from_wiki(
         
         pages = data.get("query", {}).get("pages", {})
         if not pages:
-            return "Статья не найдена"
+            return ["Статья не найдена"]
         
         page_id, page = next(iter(pages.items()))
         
         if "missing" in page:
-            return f"Статья не найдена. Проверьте правильность названия."
+            return ["Статья не найдена. Проверьте правильность названия."]
         
-        title = page.get("title", "Без названия")
+        page_title = page.get("title", "Без названия")
         extract = page.get("extract", "Содержимое недоступно")
         url = page.get("fullurl", f"https://{language}.wikipedia.org/?curid={pageid}")
         timestamp = page.get("revisions", [{}])[0].get("timestamp", "")
         
+        # Разбиваем текст по абзацам (двойной перенос строки)
+        if not extract or extract == "Содержимое недоступно":
+            return ["Содержимое статьи недоступно"]
         
-        return extract
+        # Разбиваем по двойным переносам строк (\n\n) для получения абзацев
+        paragraphs = [p.strip() for p in extract.split("\n\n") if p.strip()]
+        
+        # Если абзацев нет, разбиваем по одинарным переносам
+        if not paragraphs:
+            paragraphs = [p.strip() for p in extract.split("\n") if p.strip()]
+        
+        # Если все еще пусто, возвращаем весь текст как один абзац
+        if not paragraphs:
+            paragraphs = [extract] if extract else ["Текст статьи пуст"]
+        
+        return paragraphs
     
     except requests.exceptions.RequestException as e:
-        return f"Ошибка при получении статьи: {str(e)}"
+        return [f"Ошибка при получении статьи: {str(e)}"]
     except Exception as e:
-        return f"Непредвиденная ошибка: {str(e)}"
+        return [f"Непредвиденная ошибка: {str(e)}"]
 
  
 @mcp.prompt()
