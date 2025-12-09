@@ -48,3 +48,13 @@ Thumbs.db
 план.md
 github1.pub
 github1
+# Google API Credentials - ONLY FOR DEVELOPMENT
+credentials.json
+service_account.json
+**/service_account*.json
+token.json
+slides_token.json
+*_token.json
+# Backup/temp credential files
+*.json.bak
+*credentials*.json

@@ -1,6 +1,6 @@
 # MCP Server для EdTech / Lesson Kit
 
-MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Agents) в сфере детских курсов и EdTech. Основная задача — помогать AI-агенту собирать «**Lesson Kit**» — полный набор материалов для урока: учебный контент, иллюстрации, квиз и запись в календарь.
+MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Agents) в сфере детских курсов и EdTech. Основная задача — помогать AI-агенту собирать «**Lesson Kit**» — полный набор материалов для урока: учебный контент, иллюстрации, квиз, презентацию и запись в календарь.
 
 ## 🎯 Основные возможности
 
@@ -10,11 +10,10 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
 | `get_images` | Подбор иллюстраций через Unsplash API с безопасным поиском для детей |
 | `get_quiz` | Генерация викторины с автоматическим переводом на русский язык |
 | `export_quiz` | Экспорт викторины в файл (JSON, HTML, CSV) |
+| `create_presentation` | Создание презентации Google Slides с текстом и изображениями |
 | `schedule_lesson` | Запись урока в Google Calendar |
 | `get_text_from_wiki` | Получение полного текста статьи из Wikipedia |
 | `search_article` | Поиск статей в Wikipedia |
-
-> 💡 **Planned:** отдельный tool для генерации презентаций (в разработке).
 
 ## 🔗 Как использовать с агентами (Cloud.ru / Evolution AI Agents)
 
@@ -32,6 +31,7 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
                               │                  │ - Wikipedia   │
                               │                  │ - Unsplash    │
                               │                  │ - OpenTDB     │
+                              │                  │ - Google Slides│
                               │                  │ - Google Cal  │
                               │                  └───────────────┘
                               ▼
@@ -40,6 +40,7 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
                     │ • Материал       │
                     │ • Картинки       │
                     │ • Квиз           │
+                    │ • Презентация    │
                     │ • Событие в кал. │
                     └──────────────────┘
 ```
@@ -53,6 +54,13 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
    wiki_get_material(topic="Солнечная система", language="ru", max_chars=4000)
    get_images(query="солнечная система планеты", count=5, safe_for_kids=True)
    get_quiz(topic="science", amount=10, difficulty="easy")
+   create_presentation(
+       title="Урок: Солнечная система",
+       slides=[
+           {"title": "Введение", "text": "Солнечная система...", "image_url": "..."},
+           {"title": "Планеты", "text": "8 планет..."}
+       ]
+   )
    schedule_lesson(
        summary="Урок: Солнечная система",
        start_iso="2025-12-12T14:00:00",
@@ -61,7 +69,7 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
    )
    ```
 
-3. **Результат:** Готовый Lesson Kit с материалом, иллюстрациями, квизом и записью в календаре.
+3. **Результат:** Готовый Lesson Kit с материалом, иллюстрациями, квизом, презентацией и записью в календаре.
 
 ## 📦 Установка
 
@@ -98,6 +106,12 @@ YANDEX_IAM_TOKEN=your_yandex_iam_token
 GOOGLE_CREDENTIALS_PATH=credentials.json
 GOOGLE_TOKEN_PATH=token.json
 GOOGLE_CALENDAR_ID=primary
+
+# Google Slides API (для create_presentation)
+GOOGLE_SLIDES_CREDENTIALS_PATH=credentials.json
+GOOGLE_SLIDES_TOKEN_PATH=slides_token.json
+GOOGLE_SERVICE_ACCOUNT_PATH=service_account.json
+GOOGLE_SLIDES_AUTH_TYPE=service_account  # или "oauth"
 ```
 
 #### Получение ключей API
@@ -107,6 +121,7 @@ GOOGLE_CALENDAR_ID=primary
 | **Unsplash** | [Unsplash Developers](https://unsplash.com/developers) → Create App → Access Key |
 | **Yandex Translate** | [Yandex Cloud Console](https://console.cloud.yandex.ru/) → Translate API → API Key |
 | **Google Calendar** | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Calendar API → OAuth 2.0 Client ID → Download JSON |
+| **Google Slides** | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Slides API → Service Account или OAuth 2.0 |
 
 #### Настройка Google Calendar
 
@@ -116,6 +131,21 @@ GOOGLE_CALENDAR_ID=primary
 4. Скачайте JSON и сохраните как `credentials.json` в корне проекта
 5. При первом запуске `schedule_lesson` откроется браузер для авторизации
 6. После авторизации будет создан `token.json` для последующих запросов
+
+#### Настройка Google Slides
+
+**Вариант 1: Service Account (рекомендуется для серверов)**
+1. Создайте проект в [Google Cloud Console](https://console.cloud.google.com/)
+2. Включите **Google Slides API** и **Google Drive API**
+3. Создайте **Service Account** → Keys → Add Key → JSON
+4. Скачайте JSON и сохраните как `service_account.json`
+5. Установите `GOOGLE_SLIDES_AUTH_TYPE=service_account`
+
+**Вариант 2: OAuth 2.0 (для персонального использования)**
+1. Создайте **OAuth 2.0 Client ID** (тип: Desktop App)
+2. Скачайте JSON как `credentials.json`
+3. Установите `GOOGLE_SLIDES_AUTH_TYPE=oauth`
+4. При первом запуске откроется браузер для авторизации
 
 ## 🚀 Запуск
 
@@ -159,6 +189,9 @@ uv run test_quiz_mcp.py
 
 # Тест Wikipedia
 uv run test_wiki_mcp.py
+
+# Тест создания презентаций
+uv run test_presentation_mcp.py
 ```
 
 ## 📁 Структура проекта
@@ -172,6 +205,8 @@ uv run test_wiki_mcp.py
 │   ├── get_images.py         # Поиск изображений (Unsplash)
 │   ├── get_quiz.py           # Генерация викторины
 │   ├── export_quiz.py        # Экспорт квиза в файл
+│   ├── create_presentation.py # Создание презентаций (Google Slides)
+│   ├── google_slides.py      # Утилиты Google Slides API
 │   ├── schedule_lesson.py    # Запись урока в Google Calendar
 │   ├── google_calendar.py    # Утилиты Google Calendar API
 │   ├── get_text_from_wiki.py # Полный текст из Wikipedia
@@ -261,6 +296,34 @@ await get_quiz(
             "all_answers": ["Азот", "Кислород", "Углекислый газ", "Водород"]
         }
     ]
+}
+```
+
+### `create_presentation`
+
+Создает презентацию Google Slides с текстом и изображениями.
+
+```python
+await create_presentation(
+    title="Урок: Введение в астрономию",
+    slides=[
+        {
+            "title": "Что такое астрономия?",
+            "text": "Астрономия — наука о Вселенной...",
+            "image_url": "https://images.unsplash.com/photo-..."  # опционально
+        },
+        {
+            "title": "Солнечная система",
+            "text": "Солнечная система состоит из 8 планет..."
+        }
+    ],
+    use_service_account=True  # или False для OAuth
+)
+# Возвращает:
+{
+    "presentation_id": "1abc...",
+    "presentation_url": "https://docs.google.com/presentation/d/1abc.../edit",
+    "slides_count": 2
 }
 ```
 
