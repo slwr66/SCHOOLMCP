@@ -100,3 +100,9 @@ dmypy.json
 deployment.md
 checklist.md
 refactoring_summary.md
+
+CLOUDRU_INTEGRATION_PLAN.md
+*_INTEGRATION_PLAN.md
+*_NOTES.md
+PRIVATE_*.md
+systemprompt.md
