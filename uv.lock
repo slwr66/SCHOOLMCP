@@ -39,6 +39,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aspose-slides"
+version = "25.12.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/c6/bfdb79408627a075bdd4f66b591a4cce3ce2fcd380584f4382631d105a3d/aspose_slides-25.12.0-py3-none-macosx_10_14_x86_64.whl", hash = "sha256:bd56639b2de124b2e49af8d5072fe025cce3b9abf26087c555db5679f962d2d0", size = 89086785, upload-time = "2025-12-05T02:50:12.964Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/27/5768271487cd0a2dbafee377126250e4136b15921f119c2e03c6dc033636/aspose_slides-25.12.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:489fedb7c1bfc4dad66b4cb1eda97076fb95c04e6e2e8e6bb62a4cd857e50814", size = 69755104, upload-time = "2025-12-05T02:50:19.239Z" },
+    { url = "https://files.pythonhosted.org/packages/59/d4/1c150cead38d26386fb0a7608f6e749b7b0e0aaeb30824f732b8c88ce08f/aspose_slides-25.12.0-py3-none-manylinux1_x86_64.whl", hash = "sha256:12190e6debb282381e85f266b54a4cd2f60f2feb437f5ae6c2f42c80a0c1992a", size = 104730161, upload-time = "2025-12-05T02:50:25.245Z" },
+    { url = "https://files.pythonhosted.org/packages/97/65/e07738c256f312b4ce00c79a3852ca2f772ddfb71d13b58d1cef0b025814/aspose_slides-25.12.0-py3-none-win32.whl", hash = "sha256:6e48786d759c1017a6eecf49fc1871640000514d7f0f84a43a4b21a69fa7515f", size = 64462694, upload-time = "2025-12-05T02:50:31.364Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/49/10295a2c5c67980dacc30dab1a2cef1189cd0dee0240deefd8f10189fd5a/aspose_slides-25.12.0-py3-none-win_amd64.whl", hash = "sha256:333b0a041c4abfe245290c0126df05cafc0b6483fdd6b4c8012425db8d268038", size = 73697123, upload-time = "2025-12-05T02:50:41.457Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -776,10 +788,11 @@ wheels = [
 
 [[package]]
 name = "mcp-servers"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
+    { name = "aspose-slides" },
     { name = "fastmcp" },
     { name = "google-api-python-client" },
     { name = "google-auth-httplib2" },
@@ -794,6 +807,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = ">=23.0.0" },
+    { name = "aspose-slides", specifier = ">=25.0.0" },
     { name = "fastmcp", specifier = ">=0.9.0" },
     { name = "google-api-python-client", specifier = ">=2.100.0" },
     { name = "google-auth-httplib2", specifier = ">=0.1.1" },

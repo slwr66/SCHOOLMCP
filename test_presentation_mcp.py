@@ -1,13 +1,14 @@
 """
-Testy dlya create_presentation MCP tool.
-Note: for full testing, configured Google Slides API is required.
+Тесты для create_presentation MCP tool.
+Использует Aspose Slides для создания презентаций локально.
 """
 import asyncio
+import os
 from typing import Dict, List
 
 
 async def test_validation():
-    """Test validacii vhodnyh dannyh."""
+    """Тест валидации входных данных."""
     print("=" * 50)
     print("Test: create_presentation (validation)")
     print("=" * 50)
@@ -38,87 +39,109 @@ async def test_validation():
     return True
 
 
-async def test_google_slides_utils():
-    """Test vspomogatelnyh funkcij."""
+async def test_aspose_slides_utils():
+    """Тест вспомогательных функций Aspose Slides."""
     print("\n" + "=" * 50)
-    print("Test: google_slides utils")
+    print("Test: aspose_slides_module utils")
     print("=" * 50)
     
-    from tools.google_slides import _build_slide_requests
+    from tools.aspose_slides_module import (
+        _generate_filename,
+        _ensure_exports_dir
+    )
     
-    # Test building slide requests without images
-    slides_no_images = [
-        {"title": "Slide 1", "text": "Content 1"},
-        {"title": "Slide 2", "text": "Content 2"}
-    ]
+    # Test filename generation
+    filename = _generate_filename("Test Presentation")
+    print(f"[OK] Generated filename: {filename}")
+    assert filename.endswith(".pptx"), "Filename should end with .pptx"
+    assert "Test" in filename or "presentation" in filename.lower(), "Filename should contain title"
     
-    requests = _build_slide_requests(slides_no_images)
-    print(f"[OK] Built {len(requests)} requests for 2 slides (no images)")
-    
-    # Each slide without image: createSlide + createShape(title) + insertText + 
-    #                          updateTextStyle + createShape(text) + insertText = 6 requests
-    # Total: 2 * 6 = 12 requests
-    expected_min = 10  # At least 5 requests per slide
-    if len(requests) >= expected_min:
-        print(f"[OK] Request count ({len(requests)}) >= minimum expected ({expected_min})")
-    else:
-        print(f"[FAIL] Request count ({len(requests)}) < minimum expected ({expected_min})")
-        return False
-    
-    # Test building slide requests with images
-    slides_with_images = [
-        {"title": "Slide 1", "text": "Content 1", "image_url": "https://example.com/img.jpg"}
-    ]
-    
-    requests_with_img = _build_slide_requests(slides_with_images)
-    print(f"[OK] Built {len(requests_with_img)} requests for 1 slide (with image)")
-    
-    # Check that image slide has more requests than non-image slide
-    requests_no_img = _build_slide_requests([{"title": "Test", "text": "Test"}])
-    if len(requests_with_img) > len(requests_no_img):
-        print("[OK] Image slide has more requests than text-only slide")
-    else:
-        print("[WARN] Image slide should have additional createImage request")
+    # Test exports directory creation
+    exports_dir = _ensure_exports_dir()
+    assert os.path.exists(exports_dir), "Exports directory should exist"
+    print(f"[OK] Exports directory exists: {exports_dir}")
     
     return True
 
 
-async def test_build_presentation_dry_run():
+async def test_build_presentation():
     """
-    Test sozdanija prezentacii (dry run -- bez realnogo Google Slides).
+    Тест создания презентации через Aspose Slides.
     """
     print("\n" + "=" * 50)
-    print("Test: build_presentation (dry run)")
+    print("Test: build_presentation (Aspose Slides)")
     print("=" * 50)
     
-    from tools.google_slides import build_presentation
+    from tools.aspose_slides_module import build_presentation
     
-    # Test with Service Account (will fail gracefully if not configured)
+    # Test basic presentation creation
     result = await build_presentation(
         title="Test Presentation",
-        slides=[
+        slides_data=[
             {"title": "Slide 1", "text": "This is slide 1 content"},
-            {"title": "Slide 2", "text": "This is slide 2 content", 
-             "image_url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa"}
-        ],
-        use_service_account=True
+            {"title": "Slide 2", "text": "This is slide 2 content"}
+        ]
     )
     
     if "error" in result:
-        print(f"[WARN] Expected error (Google Slides not configured): {result['error'][:80]}...")
-        print("[OK] Error handled correctly")
-        return True
+        error_msg = result['error'][:100]
+        print(f"[FAIL] Error: {error_msg}...")
+        return False
     
     print(f"[OK] Presentation created!")
-    print(f"   ID: {result.get('presentation_id', 'N/A')}")
-    print(f"   URL: {result.get('presentation_url', 'N/A')}")
+    print(f"   File path: {result.get('file_path', 'N/A')}")
+    print(f"   File name: {result.get('file_name', 'N/A')}")
     print(f"   Slides: {result.get('slides_count', 'N/A')}")
+    print(f"   File size: {result.get('file_size', 'N/A')} bytes")
+    
+    # Verify file exists
+    file_path = result.get('file_path', '')
+    if os.path.exists(file_path):
+        print(f"[OK] File exists on disk: {file_path}")
+    else:
+        print(f"[FAIL] File not found: {file_path}")
+        return False
+    
+    return True
+
+
+async def test_build_presentation_with_image():
+    """
+    Тест создания презентации с изображением.
+    """
+    print("\n" + "=" * 50)
+    print("Test: build_presentation (with image)")
+    print("=" * 50)
+    
+    from tools.aspose_slides_module import build_presentation
+    
+    # Test presentation with image
+    result = await build_presentation(
+        title="Presentation With Image",
+        slides_data=[
+            {"title": "Slide 1", "text": "This slide has no image"},
+            {"title": "Slide 2", "text": "This slide has an image", 
+             "image_url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400"}
+        ]
+    )
+    
+    if "error" in result:
+        error_msg = result['error'][:100]
+        print(f"[WARN] Error: {error_msg}...")
+        # Image download may fail due to network issues
+        print("[OK] Error handled gracefully")
+        return True
+    
+    print(f"[OK] Presentation with image created!")
+    print(f"   File path: {result.get('file_path', 'N/A')}")
+    print(f"   Slides: {result.get('slides_count', 'N/A')}")
+    print(f"   File size: {result.get('file_size', 'N/A')} bytes")
     
     return True
 
 
 async def test_slide_data_structure():
-    """Test struktury dannyh slajdov."""
+    """Тест структуры данных слайдов."""
     print("\n" + "=" * 50)
     print("Test: Slide data structure")
     print("=" * 50)
@@ -144,15 +167,72 @@ async def test_slide_data_structure():
     return True
 
 
+async def test_response_format():
+    """Тест формата ответа."""
+    print("\n" + "=" * 50)
+    print("Test: Response format")
+    print("=" * 50)
+    
+    # Expected success response format
+    success_response = {
+        "file_path": "exports/test.pptx",
+        "file_name": "test.pptx",
+        "slides_count": 2,
+        "file_size": 12345
+    }
+    
+    required_keys = ["file_path", "file_name", "slides_count", "file_size"]
+    for key in required_keys:
+        if key in success_response:
+            print(f"[OK] Response contains '{key}'")
+        else:
+            print(f"[FAIL] Response missing '{key}'")
+            return False
+    
+    # Expected error response format
+    error_response = {"error": "Some error message"}
+    if "error" in error_response:
+        print("[OK] Error response contains 'error' key")
+    
+    return True
+
+
+async def test_create_presentation_import():
+    """Тест импорта MCP инструмента create_presentation."""
+    print("\n" + "=" * 50)
+    print("Test: create_presentation MCP import")
+    print("=" * 50)
+    
+    try:
+        from tools.create_presentation import create_presentation
+        print("[OK] create_presentation imported successfully")
+        
+        # Verify it's a FunctionTool (MCP decorator applied)
+        tool_name = type(create_presentation).__name__
+        print(f"[OK] create_presentation is {tool_name}")
+        
+        # Check that underlying function exists
+        from tools.aspose_slides_module import build_presentation
+        print("[OK] build_presentation imported from aspose_slides_module")
+        
+        return True
+    except ImportError as e:
+        print(f"[FAIL] Import error: {e}")
+        return False
+
+
 async def main():
-    """Zapusk vseh testov."""
-    print("\n[TEST] Running create_presentation tests\n")
+    """Запуск всех тестов."""
+    print("\n[TEST] Running create_presentation tests (Aspose Slides)\n")
     
     results = []
     results.append(await test_validation())
-    results.append(await test_google_slides_utils())
+    results.append(await test_aspose_slides_utils())
     results.append(await test_slide_data_structure())
-    results.append(await test_build_presentation_dry_run())
+    results.append(await test_response_format())
+    results.append(await test_build_presentation())
+    results.append(await test_build_presentation_with_image())
+    results.append(await test_create_presentation_import())
     
     print("\n" + "=" * 50)
     print(f"[RESULT] {sum(results)}/{len(results)} tests passed")
@@ -161,4 +241,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

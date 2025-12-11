@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-edtech-server
+    restart: unless-stopped
+    
+    # Переменные окружения из .env файла
+    env_file:
+      - .env
+    
+    # Дополнительные переменные окружения
+    environment:
+      - PYTHONUNBUFFERED=1
+      - EXPORTS_DIR=/app/exports
+    
+    # Монтирование volumes для персистентности данных
+    volumes:
+      # Экспортированные файлы (презентации, квизы)
+      - ./exports:/app/exports
+      # Google Calendar credentials (если используется)
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json
+      # Aspose Slides лицензия (опционально)
+      # - ./Aspose.Slides.lic:/app/Aspose.Slides.lic:ro
+    
+    # Порты (если MCP сервер использует HTTP/WebSocket)
+    # ports:
+    #   - "8000:8000"
+    
+    # Healthcheck (опционально)
+    # healthcheck:
+    #   test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
+    
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Логирование
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Volumes для персистентности
+volumes:
+  exports:
+    driver: local
+
+# Networks (опционально, для интеграции с другими сервисами)
+networks:
+  default:
+    name: mcp-network
+    driver: bridge
+

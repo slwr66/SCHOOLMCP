@@ -1,11 +1,12 @@
 """
-Инструмент для создания презентаций через Google Slides API.
+Инструмент для создания презентаций через Aspose Slides.
+Локальная библиотека для создания PowerPoint без внешних API.
 """
 from typing import Dict, List
 from pydantic import Field
 
 from mcp_instance import mcp
-from tools.google_slides import build_presentation
+from tools.aspose_slides_module import build_presentation
 
 
 @mcp.tool()
@@ -14,18 +15,17 @@ async def create_presentation(
     slides: List[Dict] = Field(
         ..., 
         description="Список слайдов: [{title: str, text: str, image_url?: str}, ...]"
-    ),
-    use_service_account: bool = Field(
-        True, 
-        description="Использовать Service Account (True) или OAuth (False)"
     )
 ) -> Dict:
     """
-    Создать презентацию Google Slides.
+    Создать презентацию PowerPoint (PPTX).
     
     Инструмент создает презентацию с указанными слайдами. Каждый слайд может
     содержать заголовок, текст и опционально изображение. Идеально подходит
     для автоматической генерации учебных презентаций на основе материалов урока.
+    
+    Презентация создаётся локально с помощью Aspose Slides и сохраняется 
+    в директорию exports/ в формате PPTX.
     
     Args:
         title: Заголовок презентации (например, 'Урок: Солнечная система').
@@ -33,20 +33,19 @@ async def create_presentation(
             - title (str): заголовок слайда
             - text (str): основной текст слайда
             - image_url (str, опционально): URL изображения для слайда
-        use_service_account: Использовать Service Account (True) или OAuth (False).
-            Service Account рекомендуется для серверного использования.
     
     Returns:
         Словарь с информацией о созданной презентации:
         {
-            "presentation_id": str,    # ID презентации в Google Slides
-            "presentation_url": str,   # Ссылка на презентацию
-            "slides_count": int        # Количество созданных слайдов
+            "file_path": str,      # Путь к сохраненному файлу PPTX
+            "file_name": str,      # Имя файла
+            "slides_count": int,   # Количество созданных слайдов
+            "file_size": int       # Размер файла в байтах
         }
         
         В случае ошибки:
         {
-            "error": str               # Описание ошибки
+            "error": str           # Описание ошибки
         }
     
     Example:
@@ -62,13 +61,13 @@ async def create_presentation(
         ...             "title": "Солнечная система",
         ...             "text": "Солнечная система состоит из 8 планет..."
         ...         }
-        ...     ],
-        ...     use_service_account=True
+        ...     ]
         ... )
         {
-            "presentation_id": "1abc...",
-            "presentation_url": "https://docs.google.com/presentation/d/1abc.../edit",
-            "slides_count": 2
+            "file_path": "exports/Урок_Введение_в_астрономию_20251210_143022_a1b2c3d4.pptx",
+            "file_name": "Урок_Введение_в_астрономию_20251210_143022_a1b2c3d4.pptx",
+            "slides_count": 2,
+            "file_size": 123456
         }
     """
     # Валидация входных данных
@@ -111,12 +110,10 @@ async def create_presentation(
         
         validated_slides.append(validated_slide)
     
-    # Создаем презентацию через Google Slides API
+    # Создаем презентацию через Aspose Slides
     result = await build_presentation(
         title=title.strip(),
-        slides=validated_slides,
-        use_service_account=use_service_account
+        slides_data=validated_slides
     )
     
     return result
-

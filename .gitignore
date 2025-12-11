@@ -1,37 +1,23 @@
-# Environment variables
-.env
-
-# Exports directory
-exports/
-
 # Python
 __pycache__/
-**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 venv/
 env/
 ENV/
-.venv/
+.venv
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
@@ -39,22 +25,78 @@ ENV/
 *.swp
 *.swo
 *~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Environment variables (ВАЖНО!)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Credentials и токены (КРИТИЧНО!)
+credentials.json
+token.json
+service_account*.json
+slides_token.json
+*.pem
+*.key
+*.lic
+
+# SSH keys
+github1
+github1.pub
+id_rsa
+id_rsa.pub
+*.ppk
+
+# Exports (generated files)
+exports/
+*.pptx
+*.csv
+
+# Tests
+test_results/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Lock files
+uv.lock
+poetry.lock
+Pipfile.lock
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+requirements copy.txt
+
+# Docker
+.dockerignore
 
 # OS
-.DS_Store
 Thumbs.db
+.DS_Store
+desktop.ini
 
-# other
-план.md
-github1.pub
-github1
-# Google API Credentials - ONLY FOR DEVELOPMENT
-credentials.json
-service_account.json
-**/service_account*.json
-token.json
-slides_token.json
-*_token.json
-# Backup/temp credential files
-*.json.bak
-*credentials*.json
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# temp md files
+deployment.md
+checklist.md
+refactoring_summary.md

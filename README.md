@@ -10,7 +10,7 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
 | `get_images` | Подбор иллюстраций через Unsplash API с безопасным поиском для детей |
 | `get_quiz` | Генерация викторины с автоматическим переводом на русский язык |
 | `export_quiz` | Экспорт викторины в файл (JSON, HTML, CSV) |
-| `create_presentation` | Создание презентации Google Slides с текстом и изображениями |
+| `create_presentation` | Создание презентации PowerPoint (PPTX) через Aspose Slides (локально) |
 | `schedule_lesson` | Запись урока в Google Calendar |
 | `get_text_from_wiki` | Получение полного текста статьи из Wikipedia |
 | `search_article` | Поиск статей в Wikipedia |
@@ -27,11 +27,12 @@ MCP-сервер для бизнес-агентов (Cloud.ru / Evolution AI Age
                               │                          │
                               │                          ▼
                               │                  ┌───────────────┐
-                              │                  │ Внешние API:  │
+                              │                  │ Сервисы:      │
                               │                  │ - Wikipedia   │
                               │                  │ - Unsplash    │
                               │                  │ - OpenTDB     │
-                              │                  │ - Google Slides│
+                              │                  │ - Aspose      │
+                              │                  │   Slides      │
                               │                  │ - Google Cal  │
                               │                  └───────────────┘
                               ▼
@@ -98,20 +99,23 @@ pip install -r requirements.txt
 UNSPLASH_ACCESS_KEY=your_unsplash_key
 
 # Yandex Translate (для get_quiz — перевод вопросов)
+# Вариант 1: API Key (проще)
 YANDEX_API_KEY=your_yandex_api_key
-# или
-YANDEX_IAM_TOKEN=your_yandex_iam_token
+
+# Вариант 2: IAM Token (требует folder_id)
+# YANDEX_IAM_TOKEN=your_yandex_iam_token
+# YANDEX_FOLDER_ID=your_folder_id
 
 # Google Calendar API (для schedule_lesson)
 GOOGLE_CREDENTIALS_PATH=credentials.json
 GOOGLE_TOKEN_PATH=token.json
 GOOGLE_CALENDAR_ID=primary
 
-# Google Slides API (для create_presentation)
-GOOGLE_SLIDES_CREDENTIALS_PATH=credentials.json
-GOOGLE_SLIDES_TOKEN_PATH=slides_token.json
-GOOGLE_SERVICE_ACCOUNT_PATH=service_account.json
-GOOGLE_SLIDES_AUTH_TYPE=service_account  # или "oauth"
+# Aspose Slides (опционально — для удаления watermark)
+# ASPOSE_LICENSE_PATH=path/to/Aspose.Slides.lic
+
+# Директория для экспортированных файлов
+EXPORTS_DIR=exports
 ```
 
 #### Получение ключей API
@@ -121,7 +125,7 @@ GOOGLE_SLIDES_AUTH_TYPE=service_account  # или "oauth"
 | **Unsplash** | [Unsplash Developers](https://unsplash.com/developers) → Create App → Access Key |
 | **Yandex Translate** | [Yandex Cloud Console](https://console.cloud.yandex.ru/) → Translate API → API Key |
 | **Google Calendar** | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Calendar API → OAuth 2.0 Client ID → Download JSON |
-| **Google Slides** | [Google Cloud Console](https://console.cloud.google.com/) → APIs → Slides API → Service Account или OAuth 2.0 |
+| **Aspose Slides** | [Aspose Purchase](https://purchase.aspose.com/) → Лицензия (опционально, без неё будет watermark) |
 
 #### Настройка Google Calendar
 
@@ -132,51 +136,113 @@ GOOGLE_SLIDES_AUTH_TYPE=service_account  # или "oauth"
 5. При первом запуске `schedule_lesson` откроется браузер для авторизации
 6. После авторизации будет создан `token.json` для последующих запросов
 
-#### Настройка Google Slides
+#### Настройка Aspose Slides (опционально)
 
-**Вариант 1: Service Account (рекомендуется для серверов)**
-1. Создайте проект в [Google Cloud Console](https://console.cloud.google.com/)
-2. Включите **Google Slides API** и **Google Drive API**
-3. Создайте **Service Account** → Keys → Add Key → JSON
-4. Скачайте JSON и сохраните как `service_account.json`
-5. Установите `GOOGLE_SLIDES_AUTH_TYPE=service_account`
+**Aspose Slides** работает локально без регистрации и внешних API. Библиотека устанавливается автоматически при установке зависимостей.
 
-**Вариант 2: OAuth 2.0 (для персонального использования)**
-1. Создайте **OAuth 2.0 Client ID** (тип: Desktop App)
-2. Скачайте JSON как `credentials.json`
-3. Установите `GOOGLE_SLIDES_AUTH_TYPE=oauth`
-4. При первом запуске откроется браузер для авторизации
+**Без лицензии:** Презентации будут содержать watermark "Evaluation Only. Created with Aspose.Slides."
+
+**С лицензией:**
+1. Приобретите лицензию на [Aspose Purchase](https://purchase.aspose.com/)
+2. Скачайте файл лицензии `.lic`
+3. Укажите путь к лицензии в `.env`: `ASPOSE_LICENSE_PATH=path/to/Aspose.Slides.lic`
 
 ## 🚀 Запуск
 
 ### Локальный запуск
 
 ```bash
-# С uv
+# С uv (рекомендуется)
 uv run server.py
 
 # С python
 python server.py
 ```
 
-### Docker (опционально)
+### Docker
 
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["python", "server.py"]
-```
+#### Вариант 1: Docker Compose (рекомендуется)
 
 ```bash
-docker build -t mcp-edtech .
-docker run -p 8000:8000 --env-file .env mcp-edtech
+# Сборка и запуск
+docker-compose up -d
+
+# Просмотр логов
+docker-compose logs -f
+
+# Остановка
+docker-compose down
+
+# Пересборка после изменений
+docker-compose up -d --build
 ```
+
+#### Вариант 2: Docker CLI
+
+```bash
+# Сборка образа
+docker build -t mcp-edtech:latest .
+
+# Запуск контейнера
+docker run -d \
+  --name mcp-edtech-server \
+  --env-file .env \
+  -v $(pwd)/exports:/app/exports \
+  -v $(pwd)/credentials.json:/app/credentials.json:ro \
+  -v $(pwd)/token.json:/app/token.json \
+  mcp-edtech:latest
+
+# Просмотр логов
+docker logs -f mcp-edtech-server
+
+# Остановка и удаление
+docker stop mcp-edtech-server
+docker rm mcp-edtech-server
+```
+
+### Деплой на Cloud.ru
+
+📖 **Подробная инструкция по деплою:** см. [DEPLOYMENT.md](DEPLOYMENT.md)
+
+#### Быстрый старт
+
+1. **Создайте `.env` файл** (используйте `env.example` как шаблон):
+   ```bash
+   cp env.example .env
+   # Отредактируйте .env и заполните ключи API
+   ```
+
+2. **Запустите через Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Для деплоя на Cloud.ru**:
+   ```bash
+   # Сборка и push образа
+   docker build -t mcp-edtech:v0.3.0 .
+   docker tag mcp-edtech:v0.3.0 your-registry.cloud.ru/mcp-edtech:v0.3.0
+   docker push your-registry.cloud.ru/mcp-edtech:v0.3.0
+   
+   # Деплой через Cloud.ru CLI или UI
+   # См. DEPLOYMENT.md для подробностей
+   ```
+
+#### Переменные окружения
+
+| Переменная | Обязательна | Описание |
+|------------|-------------|----------|
+| `UNSPLASH_ACCESS_KEY` | Да | API ключ Unsplash для поиска изображений |
+| `YANDEX_API_KEY` | Да* | API ключ Yandex Translate (или `YANDEX_IAM_TOKEN`) |
+| `YANDEX_IAM_TOKEN` | Да* | IAM токен Yandex Cloud (альтернатива API Key) |
+| `YANDEX_FOLDER_ID` | Нет | Folder ID для IAM токена (если используется) |
+| `GOOGLE_CREDENTIALS_PATH` | Нет | Путь к credentials.json для Google Calendar |
+| `GOOGLE_TOKEN_PATH` | Нет | Путь к token.json для Google Calendar |
+| `GOOGLE_CALENDAR_ID` | Нет | ID календаря (по умолчанию: primary) |
+| `ASPOSE_LICENSE_PATH` | Нет | Путь к лицензии Aspose Slides (для удаления watermark) |
+| `EXPORTS_DIR` | Нет | Директория для экспорта (по умолчанию: exports) |
+
+*Требуется либо `YANDEX_API_KEY`, либо `YANDEX_IAM_TOKEN` + `YANDEX_FOLDER_ID`
 
 ## 🧪 Тестирование
 
@@ -192,6 +258,9 @@ uv run test_wiki_mcp.py
 
 # Тест создания презентаций
 uv run test_presentation_mcp.py
+
+# Быстрый тест создания презентации
+uv run quick.py
 ```
 
 ## 📁 Структура проекта
@@ -205,18 +274,19 @@ uv run test_presentation_mcp.py
 │   ├── get_images.py         # Поиск изображений (Unsplash)
 │   ├── get_quiz.py           # Генерация викторины
 │   ├── export_quiz.py        # Экспорт квиза в файл
-│   ├── create_presentation.py # Создание презентаций (Google Slides)
-│   ├── google_slides.py      # Утилиты Google Slides API
+│   ├── create_presentation.py # Создание презентаций (MCP tool)
+│   ├── aspose_slides_module.py # Утилиты Aspose Slides
 │   ├── schedule_lesson.py    # Запись урока в Google Calendar
 │   ├── google_calendar.py    # Утилиты Google Calendar API
 │   ├── get_text_from_wiki.py # Полный текст из Wikipedia
 │   └── utils.py              # Общие утилиты (OpenTDB, Yandex)
 ├── templates/
 │   └── quiz_template.html    # HTML шаблон для экспорта квиза
-├── exports/                  # Папка для экспортированных файлов
+├── exports/                  # Папка для экспортированных файлов (презентации PPTX)
 ├── test_*.py                 # Тестовые скрипты
 ├── requirements.txt          # Python зависимости
 ├── pyproject.toml            # Конфигурация проекта
+├── Dockerfile                # Docker образ
 └── .env                      # Переменные окружения (не в git!)
 ```
 
@@ -301,7 +371,7 @@ await get_quiz(
 
 ### `create_presentation`
 
-Создает презентацию Google Slides с текстом и изображениями.
+Создает презентацию PowerPoint (PPTX) локально через Aspose Slides.
 
 ```python
 await create_presentation(
@@ -316,16 +386,22 @@ await create_presentation(
             "title": "Солнечная система",
             "text": "Солнечная система состоит из 8 планет..."
         }
-    ],
-    use_service_account=True  # или False для OAuth
+    ]
 )
 # Возвращает:
 {
-    "presentation_id": "1abc...",
-    "presentation_url": "https://docs.google.com/presentation/d/1abc.../edit",
-    "slides_count": 2
+    "file_path": "exports/Урок_Введение_в_астрономию_20251210_143022_a1b2c3d4.pptx",
+    "file_name": "Урок_Введение_в_астрономию_20251210_143022_a1b2c3d4.pptx",
+    "slides_count": 2,
+    "file_size": 123456
 }
 ```
+
+**Особенности:**
+- Работает локально, без внешних API
+- Создаёт слайды программно (не требует шаблон)
+- Поддерживает загрузку изображений по URL
+- Без лицензии добавляет watermark "Evaluation Only"
 
 ### `schedule_lesson`
 
@@ -351,11 +427,91 @@ await schedule_lesson(
 
 ## 📋 Требования
 
+### Системные требования
+
 - Python 3.10+
-- FastMCP >= 0.9.0
-- httpx >= 0.25.0
-- google-api-python-client >= 2.100.0
-- google-auth-oauthlib >= 1.1.0
+- Docker (опционально, для контейнеризации)
+- Docker Compose (опционально, для упрощенного деплоя)
+
+### Python зависимости
+
+- **Основные:**
+  - FastMCP >= 0.9.0
+  - httpx >= 0.25.0
+  - python-dotenv >= 1.0.0
+  - pydantic >= 2.0.0
+
+- **Для презентаций:**
+  - aspose.slides >= 25.0.0
+
+- **Для Google Calendar:**
+  - google-api-python-client >= 2.100.0
+  - google-auth-httplib2 >= 0.1.1
+  - google-auth-oauthlib >= 1.1.0
+
+- **Для экспорта квизов:**
+  - jinja2 >= 3.1.0
+  - aiofiles >= 23.0.0
+
+### Внешние API
+
+- **Unsplash API** — поиск изображений (требуется ключ)
+- **Yandex Translate API** — перевод викторин (требуется ключ или IAM токен)
+- **OpenTDB API** — генерация викторин (не требует ключа)
+- **Wikipedia API** — получение учебных материалов (не требует ключа)
+- **Google Calendar API** — планирование уроков (требуется OAuth 2.0)
+
+## 🔒 Безопасность
+
+### Важно для продакшена:
+
+1. **Никогда не коммитьте в Git:**
+   - `.env` файлы
+   - `credentials.json`, `token.json`
+   - SSH ключи
+   - Файлы лицензий
+
+2. **Используйте секреты:**
+   - В Cloud.ru используйте встроенную систему секретов
+   - В Docker используйте Docker Secrets
+   - Локально используйте `.env` файл (добавлен в `.gitignore`)
+
+3. **Ограничьте доступ:**
+   - Настройте firewall для Docker контейнеров
+   - Используйте read-only volumes где возможно
+   - Ограничьте ресурсы контейнера (CPU, память)
+
+## 🐛 Отладка
+
+### Проверка логов
+
+```bash
+# Docker Compose
+docker-compose logs -f
+
+# Docker CLI
+docker logs -f mcp-edtech-server
+
+# Локальный запуск
+python server.py  # Логи выводятся в stdout
+```
+
+### Частые проблемы
+
+1. **Ошибка "Aspose Slides не установлен"**
+   - Решение: `pip install aspose.slides`
+
+2. **Презентации с watermark "Evaluation Only"**
+   - Решение: Приобретите лицензию Aspose и укажите путь в `ASPOSE_LICENSE_PATH`
+
+3. **Ошибка перевода Yandex**
+   - Проверьте правильность `YANDEX_API_KEY` или `YANDEX_IAM_TOKEN`
+   - Для IAM токена убедитесь, что указан `YANDEX_FOLDER_ID`
+
+4. **Google Calendar не работает**
+   - Убедитесь, что `credentials.json` существует
+   - При первом запуске пройдите OAuth авторизацию в браузере
+   - Проверьте, что Google Calendar API включен в Google Cloud Console
 
 ## 📄 Лицензия
 
@@ -364,3 +520,11 @@ MIT License
 ---
 
 **Разработано для интеграции с Cloud.ru / Evolution AI Agents**
+
+## 📞 Поддержка
+
+При возникновении проблем:
+1. Проверьте раздел "Отладка" выше
+2. Убедитесь, что все зависимости установлены
+3. Проверьте правильность переменных окружения
+4. Просмотрите логи контейнера/приложения
