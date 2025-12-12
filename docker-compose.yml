@@ -27,9 +27,9 @@ services:
       # Aspose Slides лицензия (опционально)
       # - ./Aspose.Slides.lic:/app/Aspose.Slides.lic:ro
     
-    # Порты (если MCP сервер использует HTTP/WebSocket)
-    # ports:
-    #   - "8000:8000"
+    # Порты для HTTP/SSE режима (обязательно для Cloud.ru)
+    ports:
+      - "8000:8000"
     
     # Healthcheck (опционально)
     # healthcheck:

@@ -6,7 +6,7 @@ FROM python:3.11-slim
 # Метаданные
 LABEL maintainer="MCP EdTech Team"
 LABEL description="MCP Server for EdTech / Lesson Kit - Cloud.ru / Evolution AI Agents"
-LABEL version="0.3.0"
+LABEL version="0.3.3"
 
 # Установка рабочей директории
 WORKDIR /app
@@ -39,6 +39,10 @@ ENV EXPORTS_DIR=/app/exports
 
 # Опционально: путь к лицензии Aspose Slides
 # ENV ASPOSE_LICENSE_PATH=/app/Aspose.Slides.lic
+
+# Health check для мониторинга работоспособности
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 
 # Точка входа
 CMD ["python", "server.py"]

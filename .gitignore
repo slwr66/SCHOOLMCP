@@ -74,6 +74,10 @@ Pipfile.lock
 *.bak
 requirements copy.txt
 
+# Debug logs
+.cursor/debug.log
+debug.log
+
 # Docker
 .dockerignore
 
