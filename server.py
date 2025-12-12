@@ -4,8 +4,19 @@
 """
 import os
 import sys
+import asyncio
+import logging
+import signal
 from typing import Any
 from mcp_instance import mcp
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Импорты инструментов для регистрации декораторов
 from tools.get_images import get_images  # noqa: F401
@@ -22,7 +33,7 @@ def validate_configuration() -> None:
     mode = os.getenv("MCP_MODE", "sse").lower()
     
     if mode not in ["stdio", "sse"]:
-        print(f"❌ ОШИБКА: Неверный MCP_MODE={mode}. Допустимые значения: stdio, sse")
+        logger.error(f"Неверный MCP_MODE={mode}. Допустимые значения: stdio, sse")
         sys.exit(1)
     
     if mode == "sse":
@@ -31,13 +42,28 @@ def validate_configuration() -> None:
             if port < 1 or port > 65535:
                 raise ValueError(f"Порт должен быть в диапазоне 1-65535, получено: {port}")
         except ValueError as e:
-            print(f"❌ ОШИБКА: Неверный PORT: {e}")
+            logger.error(f"Неверный PORT: {e}")
             sys.exit(1)
         
         host = os.getenv("HOST", "0.0.0.0")
         if not host:
-            print("❌ ОШИБКА: HOST не может быть пустым")
+            logger.error("HOST не может быть пустым")
             sys.exit(1)
+        
+        # Проверка обязательных API ключей
+        required_keys = ["UNSPLASH_ACCESS_KEY"]
+        missing_keys = [key for key in required_keys if not os.getenv(key)]
+        
+        if missing_keys:
+            logger.warning(f"Отсутствуют API ключи: {', '.join(missing_keys)}. Некоторые функции могут не работать.")
+        
+        # Проверка Yandex API (нужен либо API_KEY, либо IAM_TOKEN + FOLDER_ID)
+        yandex_api_key = os.getenv("YANDEX_API_KEY")
+        yandex_iam_token = os.getenv("YANDEX_IAM_TOKEN")
+        yandex_folder_id = os.getenv("YANDEX_FOLDER_ID")
+        
+        if not yandex_api_key and not (yandex_iam_token and yandex_folder_id):
+            logger.warning("Yandex API не настроен. Функция перевода может не работать.")
 
 
 def check_tools_registration() -> None:
@@ -153,33 +179,32 @@ def check_tools_registration() -> None:
                 except Exception as e:
                     print(f"🔍 Ошибка при проверке _server: {e}")
         
-        print(f"✅ Зарегистрировано инструментов: {tools_count}")
+        logger.info(f"Зарегистрировано инструментов: {tools_count}")
         
         if tools_count == 0:
-            print("⚠️  ВНИМАНИЕ: Не удалось определить количество инструментов через внутренние атрибуты.")
-            print("   Это может быть нормально - инструменты могут быть зарегистрированы, но недоступны для проверки.")
-            print("   Сервер будет работать нормально, если инструменты действительно зарегистрированы.")
-            print("   Проверьте работоспособность через /tools endpoint или подключение агента.")
+            logger.warning("Не удалось определить количество инструментов через внутренние атрибуты.")
+            logger.warning("Это может быть нормально - инструменты могут быть зарегистрированы, но недоступны для проверки.")
+            logger.warning("Сервер будет работать нормально, если инструменты действительно зарегистрированы.")
+            logger.warning("Проверьте работоспособность через /tools endpoint или подключение агента.")
         else:
-            print("📋 Список инструментов:")
+            logger.info("Список инструментов:")
             if isinstance(tools_list, list) and len(tools_list) > 0:
                 if isinstance(tools_list[0], str):
                     # Если это список строк (имен)
                     for tool_name in tools_list:
-                        print(f"   - {tool_name}")
+                        logger.info(f"   - {tool_name}")
                 else:
                     # Если это объекты инструментов
                     for tool in tools_list:
                         tool_name = getattr(tool, 'name', getattr(tool, '__name__', str(tool)))
-                        print(f"   - {tool_name}")
+                        logger.info(f"   - {tool_name}")
             else:
-                print("   (детали недоступны)")
+                logger.info("   (детали недоступны)")
                 
     except Exception as e:
-        print(f"⚠️  Предупреждение: Не удалось проверить список инструментов: {e}")
-        print("   Продолжаем запуск...")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Не удалось проверить список инструментов: {e}")
+        logger.warning("Продолжаем запуск...")
+        logger.debug("Traceback:", exc_info=True)
 
 
 def create_health_endpoints(base_app) -> Any:
@@ -270,9 +295,111 @@ def create_health_endpoints(base_app) -> Any:
                 "endpoints": {
                     "health": "/health",
                     "tools": "/tools",
+                    "call_tool": "/api/call-tool",
                     "mcp": "/sse" if os.getenv("MCP_TRANSPORT", "sse").lower() == "sse" else "/"
                 }
             })
+        
+        async def call_tool_endpoint(request):
+            """HTTP endpoint для вызова MCP инструментов (для тестирования)."""
+            try:
+                data = await request.json()
+                tool_name = data.get("tool_name")
+                arguments = data.get("arguments", {})
+                
+                if not tool_name:
+                    return JSONResponse({
+                        "error": "tool_name is required"
+                    }, status_code=400)
+                
+                # Вызов инструмента через FastMCP
+                try:
+                    # Пытаемся найти и вызвать инструмент напрямую
+                    result_data = None
+                    
+                    # Метод 1: Через _call_tool_mcp (основной метод FastMCP)
+                    if hasattr(mcp, '_call_tool_mcp'):
+                        result = await mcp._call_tool_mcp(tool_name, arguments)
+                        # Преобразуем результат FastMCP в JSON
+                        if hasattr(result, 'content'):
+                            if isinstance(result.content, list) and len(result.content) > 0:
+                                content_item = result.content[0]
+                                if hasattr(content_item, 'text'):
+                                    try:
+                                        import json
+                                        result_data = json.loads(content_item.text)
+                                    except:
+                                        result_data = content_item.text
+                                else:
+                                    result_data = str(content_item)
+                            elif hasattr(result.content, 'text'):
+                                try:
+                                    import json
+                                    result_data = json.loads(result.content.text)
+                                except:
+                                    result_data = result.content.text
+                            else:
+                                result_data = str(result.content)
+                        else:
+                            result_data = str(result)
+                    
+                    # Метод 2: Через _call_tool (альтернативный метод)
+                    elif hasattr(mcp, '_call_tool'):
+                        result = await mcp._call_tool(tool_name, arguments)
+                        if isinstance(result, (dict, list, str, int, float, bool, type(None))):
+                            result_data = result
+                        else:
+                            result_data = str(result)
+                    
+                    # Метод 3: Прямой вызов через _server (если доступно)
+                    elif hasattr(mcp, '_server'):
+                        server = getattr(mcp, '_server')
+                        # Ищем инструмент в _server
+                        if hasattr(server, '_tools'):
+                            tools_dict = getattr(server, '_tools', {})
+                            if tool_name in tools_dict:
+                                tool_func = tools_dict[tool_name]
+                                # Вызываем функцию напрямую
+                                if asyncio.iscoroutinefunction(tool_func):
+                                    result_data = await tool_func(**arguments)
+                                else:
+                                    result_data = tool_func(**arguments)
+                            else:
+                                return JSONResponse({
+                                    "error": f"Tool '{tool_name}' not found"
+                                }, status_code=404)
+                        else:
+                            return JSONResponse({
+                                "error": "Tools dictionary not available"
+                            }, status_code=500)
+                    else:
+                        return JSONResponse({
+                            "error": "Tool calling method not available"
+                        }, status_code=500)
+                    
+                    # Убеждаемся, что result_data не None
+                    if result_data is None:
+                        result_data = {"message": "Tool executed but returned None"}
+                    
+                    return JSONResponse({
+                        "success": True,
+                        "tool_name": tool_name,
+                        "result": result_data
+                    })
+                except Exception as e:
+                    import traceback
+                    return JSONResponse({
+                        "success": False,
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    }, status_code=500)
+                    
+            except Exception as e:
+                import traceback
+                return JSONResponse({
+                    "error": f"Request parsing error: {str(e)}",
+                    "traceback": traceback.format_exc()
+                }, status_code=400)
         
         # Проверяем, является ли base_app Starlette приложением
         if isinstance(base_app, Starlette):
@@ -280,6 +407,7 @@ def create_health_endpoints(base_app) -> Any:
             base_app.routes.extend([
                 Route("/health", health_check, methods=["GET"]),
                 Route("/tools", list_tools_endpoint, methods=["GET"]),
+                Route("/api/call-tool", call_tool_endpoint, methods=["POST"]),
                 Route("/", root_endpoint, methods=["GET"]),
             ])
             return base_app
@@ -289,20 +417,20 @@ def create_health_endpoints(base_app) -> Any:
             health_app = Starlette(routes=[
                 Route("/health", health_check, methods=["GET"]),
                 Route("/tools", list_tools_endpoint, methods=["GET"]),
+                Route("/api/call-tool", call_tool_endpoint, methods=["POST"]),
                 Route("/", root_endpoint, methods=["GET"]),
                 Mount(mcp_path, app=base_app),
             ])
             return health_app
             
     except ImportError as e:
-        print(f"⚠️  Предупреждение: Не удалось импортировать Starlette: {e}")
-        print("   Health endpoints недоступны, но MCP сервер будет работать")
+        logger.warning(f"Не удалось импортировать Starlette: {e}")
+        logger.warning("Health endpoints недоступны, но MCP сервер будет работать")
         return base_app
     except Exception as e:
-        print(f"⚠️  Предупреждение: Не удалось создать health endpoints: {e}")
-        print("   MCP сервер будет работать без дополнительных endpoints")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Не удалось создать health endpoints: {e}")
+        logger.warning("MCP сервер будет работать без дополнительных endpoints")
+        logger.debug("Traceback:", exc_info=True)
         return base_app
 
 
@@ -315,17 +443,15 @@ if __name__ == "__main__":
     
     if mode == "stdio":
         # Локальный режим через standard input/output (для тестирования)
-        print("🔧 Запуск MCP сервера в режиме stdio (локально)")
+        logger.info("Запуск MCP сервера в режиме stdio (локально)")
         try:
             check_tools_registration()
             mcp.run()
         except KeyboardInterrupt:
-            print("\n👋 Остановка сервера...")
+            logger.info("Получен сигнал остановки. Завершение работы...")
             sys.exit(0)
         except Exception as e:
-            print(f"❌ Критическая ошибка при запуске: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.critical(f"Критическая ошибка при запуске: {e}", exc_info=True)
             sys.exit(1)
     else:
         # HTTP/SSE режим для удалённого подключения (Cloud.ru)
@@ -340,11 +466,23 @@ if __name__ == "__main__":
         # Проверка регистрации инструментов перед запуском
         check_tools_registration()
         
+        # Глобальная переменная для graceful shutdown
+        shutdown_event = asyncio.Event()
+        
+        def signal_handler(signum, frame):
+            """Обработчик сигналов для graceful shutdown."""
+            logger.info(f"Получен сигнал {signum}. Инициирую graceful shutdown...")
+            shutdown_event.set()
+        
+        # Регистрация обработчиков сигналов
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
         try:
             if transport == "sse":
-                print(f"🚀 Запуск MCP сервера в режиме SSE")
-                print(f"📡 Слушаю на {host}:{port}")
-                print(f"🌐 Endpoint: http://{host}:{port}/sse")
+                logger.info("Запуск MCP сервера в режиме SSE")
+                logger.info(f"Слушаю на {host}:{port}")
+                logger.info(f"Endpoint: http://{host}:{port}/sse")
                 # Используем старый метод sse_app() (работает, но показывает deprecation warning)
                 # Подавляем предупреждение, так как новый API требует дополнительные параметры
                 import warnings
@@ -352,37 +490,42 @@ if __name__ == "__main__":
                     warnings.filterwarnings("ignore", category=DeprecationWarning)
                     app = mcp.sse_app()
             else:
-                print(f"🚀 Запуск MCP сервера в режиме HTTP")
-                print(f"📡 Слушаю на {host}:{port}")
-                print(f"🌐 Endpoint: http://{host}:{port}")
+                logger.info("Запуск MCP сервера в режиме HTTP")
+                logger.info(f"Слушаю на {host}:{port}")
+                logger.info(f"Endpoint: http://{host}:{port}")
                 # Получаем HTTP приложение из FastMCP (вызываем метод)
                 app = mcp.http_app()
             
             # Добавляем health check endpoints
             app = create_health_endpoints(app)
             
-            print(f"✅ Health check: http://{host}:{port}/health")
-            print(f"✅ Tools list: http://{host}:{port}/tools")
+            logger.info(f"Health check: http://{host}:{port}/health")
+            logger.info(f"Tools list: http://{host}:{port}/tools")
+            logger.info(f"Call tool API: http://{host}:{port}/api/call-tool")
             
         except Exception as e:
-            print(f"❌ Ошибка при создании приложения: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.critical(f"Ошибка при создании приложения: {e}", exc_info=True)
             sys.exit(1)
         
         # Запуск через uvicorn с приложением FastMCP
         try:
-            uvicorn.run(
+            config = uvicorn.Config(
                 app,
                 host=host,
                 port=port,
-                log_level="info"
+                log_level="info",
+                access_log=True,
+                timeout_keep_alive=30,
+                timeout_graceful_shutdown=10
             )
+            server = uvicorn.Server(config)
+            
+            # Запуск сервера
+            server.run()
+            
         except KeyboardInterrupt:
-            print("\n👋 Остановка сервера...")
+            logger.info("Получен сигнал остановки. Завершение работы...")
             sys.exit(0)
         except Exception as e:
-            print(f"❌ Критическая ошибка при запуске uvicorn: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.critical(f"Критическая ошибка при запуске uvicorn: {e}", exc_info=True)
             sys.exit(1)
